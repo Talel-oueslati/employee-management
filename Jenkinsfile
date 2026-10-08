@@ -19,6 +19,7 @@ pipeline {
         stage('Backend: Install deps') {
             steps {
                 dir('backend') {
+                    sh 'rm -rf node_modules package-lock.json'
                     sh 'npm install --no-audit --no-fund'
                 }
             }
@@ -36,6 +37,7 @@ pipeline {
         stage('Frontend: Install deps') {
             steps {
                 dir('frontend') {
+                    sh 'rm -rf node_modules package-lock.json'
                     sh 'npm install --no-audit --no-fund'
                 }
             }
@@ -89,7 +91,6 @@ pipeline {
             sh 'docker compose logs --tail=50 frontend || true'
             echo '--- Postgres logs ---'
             sh 'docker compose logs --tail=50 postgres || true'
-            sh 'docker compose ps || true'
         }
         always {
             echo '--- Container status ---'
