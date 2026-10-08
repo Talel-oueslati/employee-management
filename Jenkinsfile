@@ -69,10 +69,10 @@ pipeline {
         stage('Health check') {
             steps {
                 sh 'sleep 25'
-                echo '🔎 Checking backend...'
-                sh 'curl -f http://localhost:3000/api/health'
-                echo '🔎 Checking frontend...'
-                sh 'curl -f http://localhost:4200'
+                echo '🔎 Checking backend container...'
+                sh 'docker exec emp_backend wget -q -O- http://localhost:3000/api/health || exit 1'
+                echo '🔎 Checking frontend container...'
+                sh 'docker exec emp_frontend wget -q -O- http://localhost/ > /dev/null || exit 1'
                 echo '✅ All services healthy'
             }
         }
