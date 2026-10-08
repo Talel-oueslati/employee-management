@@ -8,7 +8,6 @@ pipeline {
     }
 
     stages {
-        // ---------- CHECKOUT ----------
         stage('Checkout') {
             steps {
                 echo '📥 Code checked out from Git'
@@ -34,12 +33,54 @@ pipeline {
             }
         }
 
-        stage('Backend: Tests') {
+        stage('Backend: Unit tests') {
             steps {
                 dir('backend') {
-                    echo '🧪 Running backend Jest tests...'
                     sh 'npm test -- --runInBand'
                 }
+            }
+        }
+
+        stage('Backend: E2E tests') {
+            steps {
+                sh '''
+                    set -e
+                    echo "🐳 Starting temporary Postgres for E2E tests..."
+                    docker rm -f emp_test_postgres 2>/dev/null || true
+                    docker run -d --name emp_test_postgres \
+                        -e POSTGRES_USER=postgres \
+                        -e POSTGRES_PASSWORD=postgres \
+                        -e POSTGRES_DB=employees_test \
+                        -p 5433:5432 \
+                        postgres:16-alpine
+
+                    echo "⏳ Waiting for test DB to be ready..."
+                    READY=0
+                    for i in $(seq 1 30); do
+                        if docker exec emp_test_postgres pg_isready -U postgres > /dev/null 2>&1; then
+                            echo "✅ Test DB ready after $i attempt(s)"
+                            READY=1
+                            break
+                        fi
+                        sleep 1
+                    done
+                    if [ "$READY" -ne 1 ]; then
+                        echo "❌ Test DB never became ready"
+                        docker logs emp_test_postgres
+                        exit 1
+                    fi
+                '''
+                dir('backend') {
+                    sh '''
+                        DB_HOST=127.0.0.1 \
+                        DB_PORT=5433 \
+                        DB_USER=postgres \
+                        DB_PASSWORD=postgres \
+                        DB_NAME=employees_test \
+                        npm run test:e2e -- --runInBand
+                    '''
+                }
+                sh 'docker rm -f emp_test_postgres || true'
             }
         }
 
@@ -83,15 +124,12 @@ pipeline {
 
                     echo "⏳ Waiting for backend to be ready..."
                     BACKEND_OK=0
-
                     for i in $(seq 1 30); do
                         if docker exec emp_backend wget -q -O- http://127.0.0.1:3000/api/health > /dev/null 2>&1; then
                             echo "✅ Backend healthy after $i attempt(s)"
                             BACKEND_OK=1
                             break
                         fi
-
-                        echo "  attempt $i/30 failed — retrying in 2s..."
                         sleep 2
                     done
 
@@ -102,15 +140,12 @@ pipeline {
 
                     echo "⏳ Waiting for frontend to be ready..."
                     FRONTEND_OK=0
-
                     for i in $(seq 1 30); do
                         if docker exec emp_frontend wget -q -O- http://127.0.0.1/ > /dev/null 2>&1; then
                             echo "✅ Frontend healthy after $i attempt(s)"
                             FRONTEND_OK=1
                             break
                         fi
-
-                        echo "  attempt $i/30 failed — retrying in 2s..."
                         sleep 2
                     done
 
@@ -130,20 +165,20 @@ pipeline {
             echo '🎉 Pipeline succeeded!'
             sh 'docker compose ps || true'
         }
-
         failure {
             echo '❌ Pipeline failed!'
+            echo '--- Cleanup test DB ---'
+            sh 'docker rm -f emp_test_postgres || true'
             echo '--- Backend logs ---'
             sh 'docker compose logs --tail=50 backend || true'
-
             echo '--- Frontend logs ---'
             sh 'docker compose logs --tail=50 frontend || true'
-
             echo '--- Postgres logs ---'
             sh 'docker compose logs --tail=50 postgres || true'
         }
-
         always {
+            echo '--- Cleanup ---'
+            sh 'docker rm -f emp_test_postgres || true'
             echo '--- Container status ---'
             sh 'docker compose ps || true'
         }
