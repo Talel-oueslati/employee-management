@@ -29,21 +29,21 @@ pipeline {
             }
         }
 
-        stage('Install frontend deps') {
-            steps {
+     stage('Install frontend deps') {
+             steps {
                 dir('frontend') {
-                    sh 'npm ci'
-                }
-            }
+                    sh 'npm install --no-audit --no-fund'
         }
+    }
+}
 
-        stage('Build frontend') {
+      stage('Install backend deps') {
             steps {
-                dir('frontend') {
-                    sh 'npm run build -- --configuration production'
-                }
-            }
+                dir('backend') {
+                   sh 'npm install --no-audit --no-fund'
         }
+    }
+}
 
         stage('Build Docker images') {
             steps {
