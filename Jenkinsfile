@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         CI = 'true'
+        NPM_CONFIG_AUDIT = 'false'
+        NPM_CONFIG_FUND = 'false'
     }
 
     stages {
@@ -13,15 +15,16 @@ pipeline {
             }
         }
 
-        stage('Install backend deps') {
+        // ---------- BACKEND ----------
+        stage('Backend: Install deps') {
             steps {
                 dir('backend') {
-                    sh 'npm ci'
+                    sh 'npm install --no-audit --no-fund'
                 }
             }
         }
 
-        stage('Build backend') {
+        stage('Backend: Build') {
             steps {
                 dir('backend') {
                     sh 'npm run build'
@@ -29,47 +32,68 @@ pipeline {
             }
         }
 
-     stage('Install frontend deps') {
-             steps {
+        // ---------- FRONTEND ----------
+        stage('Frontend: Install deps') {
+            steps {
                 dir('frontend') {
                     sh 'npm install --no-audit --no-fund'
+                }
+            }
         }
-    }
-}
 
-      stage('Install backend deps') {
+        stage('Frontend: Build') {
             steps {
-                dir('backend') {
-                   sh 'npm install --no-audit --no-fund'
+                dir('frontend') {
+                    sh 'npm run build -- --configuration production'
+                }
+            }
         }
-    }
-}
 
-        stage('Build Docker images') {
+        // ---------- DOCKER ----------
+        stage('Docker: Build images') {
             steps {
                 sh 'docker compose build'
             }
         }
 
-        stage('Deploy with docker compose') {
+        stage('Docker: Deploy') {
             steps {
                 sh 'docker compose down --remove-orphans || true'
                 sh 'docker compose up -d'
             }
         }
 
+        // ---------- VERIFY ----------
         stage('Health check') {
             steps {
-                sh 'sleep 20'
-                sh 'curl -f http://localhost:3000/api/health || exit 1'
-                sh 'curl -f http://localhost:4200 || exit 1'
+                sh 'sleep 25'
+                echo '🔎 Checking backend...'
+                sh 'curl -f http://localhost:3000/api/health'
+                echo '🔎 Checking frontend...'
+                sh 'curl -f http://localhost:4200'
+                echo '✅ All services healthy'
             }
         }
     }
 
     post {
-        success { echo '🎉 Pipeline succeeded!' }
-        failure { echo '❌ Pipeline failed!' }
-        always  { sh 'docker compose ps || true' }
+        success {
+            echo '🎉 Pipeline succeeded!'
+            sh 'docker compose ps || true'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+            echo '--- Backend logs ---'
+            sh 'docker compose logs --tail=50 backend || true'
+            echo '--- Frontend logs ---'
+            sh 'docker compose logs --tail=50 frontend || true'
+            echo '--- Postgres logs ---'
+            sh 'docker compose logs --tail=50 postgres || true'
+            sh 'docker compose ps || true'
+        }
+        always {
+            echo '--- Container status ---'
+            sh 'docker compose ps || true'
+        }
     }
 }
