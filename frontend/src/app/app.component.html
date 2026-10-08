@@ -1,0 +1,26 @@
+<h1>Employee Management</h1>
+
+<form (ngSubmit)="save()">
+  <input [(ngModel)]="form.firstName" name="firstName" placeholder="First name" required>
+  <input [(ngModel)]="form.lastName" name="lastName" placeholder="Last name" required>
+  <input [(ngModel)]="form.email" name="email" placeholder="Email" required>
+  <input [(ngModel)]="form.position" name="position" placeholder="Position" required>
+  <input [(ngModel)]="form.salary" name="salary" type="number" placeholder="Salary" required>
+  <button type="submit">{{ editingId ? 'Update' : 'Add' }}</button>
+</form>
+
+<table border="1">
+  <tr>
+    <th>Name</th><th>Email</th><th>Position</th><th>Salary</th><th>Actions</th>
+  </tr>
+  <tr *ngFor="let e of employees">
+    <td>{{ e.firstName }} {{ e.lastName }}</td>
+    <td>{{ e.email }}</td>
+    <td>{{ e.position }}</td>
+    <td>{{ e.salary }}</td>
+    <td>
+      <button (click)="edit(e)">Edit</button>
+      <button (click)="delete(e.id!)">Delete</button>
+    </td>
+  </tr>
+</table>
